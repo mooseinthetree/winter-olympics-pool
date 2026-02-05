@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Winter Olympics Medal Draft Pool</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 18px; line-height: 1.35; }
+    h1 { margin: 0 0 8px 0; }
+    .sub { color: #444; margin: 0 0 18px 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+    .card h2 { margin: 0 0 10px 0; font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 6px; border-bottom: 1px solid #eee; font-size: 14px; }
+    th { font-weight: 700; }
+    .right { text-align: right; }
+    .muted { color: #555; font-size: 13px; }
+    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; margin-left: 8px; color: #333; }
+    .error { color: #b00020; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Winter Olympics Medal Draft Pool</h1>
+  <p class="sub" id="subtitle">
+    <span id="rulesText"></span>
+    <span class="pill" id="lastUpdated">Last updated: ...</span>
+  </p>
+
+  <div id="err" class="error"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Draft Board</h2>
+      <div id="draftBoard"></div>
+      <p class="muted">Edit <strong>pool.json</strong> during your manual draft to update picks.</p>
+    </div>
+
+    <div class="card">
+      <h2>Medal Table (Projected Top 12)</h2>
+      <div id="medalTable"></div>
+      <p class="muted">Edit <strong>medals.json</strong> nightly. The site recalculates automatically.</p>
+    </div>
+
+    <div class="card">
+      <h2>Pool Scoring</h2>
+      <div id="poolScoring"></div>
+      <p class="muted">Points are computed from your scoring weights and your drafted countries.</p>
+    </div>
+
+    <div class="card">
+      <h2>Leaderboard</h2>
+      <div id="leaderboard"></div>
+      <p class="muted">Tiebreakers: points, then golds, then total medals.</p>
+    </div>
+  </div>
+
+<script>
+const COUNTRY_TO_FLAG = {
+  USA:"🇺🇸", CAN:"🇨🇦", NOR:"🇳🇴", GER:"🇩🇪", SWE:"🇸🇪", NED:"🇳🇱",
+  SUI:"🇨🇭", AUT:"🇦🇹", FRA:"🇫🇷", ITA:"🇮🇹", CHN:"🇨🇳", JPN:"🇯🇵",
+  GBR:"🇬🇧", KOR:"🇰🇷", FIN:"🇫🇮", CZE:"🇨🇿", SVK:"🇸🇰", POL:"🇵🇱"
+};
+
+function flag(code) { return (COUNTRY_TO_FLAG[code] || "🏳️") + " "; }
+
+function safeNum(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function medalsFor(code, medalsMap) {
+  const m = (medalsMap && medalsMap[code]) ? medalsMap[code] : {gold:0, silver:0, bronze:0};
+  return { gold: safeNum(m.gold), silver: safeNum(m.silver), bronze: safeNum(m.bronze) };
+}
+
+function pointsForMedals(m, scoring) {
+  return m.gold * scoring.gold + m.silver * scoring.silver + m.bronze * scoring.bronze;
+}
+
+function totalMedals(m) { return m.gold + m.silver + m.bronze; }
+
+function elTable(headers, rows) {
+  const t = document.createElement("table");
+  const thead = document.createElement("thead");
+  const trh = document.createElement("tr");
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h.label;
+    if (h.right) th.className = "right";
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  t.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    r.forEach((cell, i) => {
+      const td = document.createElement("td");
+      if (headers[i].right) td.className = "right";
+      if (cell && cell.html) td.innerHTML = cell.html;
+      else td.textContent = String(cell ?? "");
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody);
+  return t;
+}
+
+async function loadJSON(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Could not load ${path} (${res.status})`);
+  return await res.json();
+}
+
+function renderDraftBoard(players) {
+  const rows = players.map(p => {
+    const countries = (p.countries || []).map(c => `${flag(c)}${c}`).join(", ");
+    return [{ html: `<strong>${p.name}</strong>` }, countries];
+  });
+  const table = elTable(
+    [{label:"Owner"}, {label:"Countries"}],
+    rows
+  );
+  const root = document.getElementById("draftBoard");
+  root.innerHTML = "";
+  root.appendChild(table);
+}
+
+function renderMedalTable(countryCodes, medalsMap) {
+  const rows = countryCodes.map(code => {
+    const m = medalsFor(code, medalsMap);
+    return [
+      { html: `${flag(code)}<strong>${code}</strong>` },
+      m.gold, m.silver, m.bronze,
+      totalMedals(m)
+    ];
+  }).sort((a,b) => {
+    // Sort by gold, then total medals (like a typical table)
+    const bg = b[1] - a[1];
+    if (bg !== 0) return bg;
+    return b[5] - a[5];
+  });
+
+  const table = elTable(
+    [
+      {label:"Country"},
+      {label:"G", right:true},
+      {label:"S", right:true},
+      {label:"B", right:true},
+      {label:"Total", right:true}
+    ],
+    rows
+  );
+  const root = document.getElementById("medalTable");
+  root.innerHTML = "";
+  root.appendChild(table);
+}
+
+function computePlayerStats(players, medalsMap, scoring) {
+  return players.map(p => {
+    const codes = p.countries || [];
+    const m1 = medalsFor(codes[0], medalsMap);
+    const m2 = medalsFor(codes[1], medalsMap);
+    const gold = m1.gold + m2.gold;
+    const silver = m1.silver + m2.silver;
+    const bronze = m1.bronze + m2.bronze;
+    const pts = pointsForMedals({gold, silver, bronze}, scoring);
+    const total = gold + silver + bronze;
+    return {
+      name: p.name,
+      countries: codes,
+      points: pts,
+      gold,
+      total
+    };
+  });
+}
+
+function renderPoolScoring(stats) {
+  const rows = stats.map(s => {
+    const countries = (s.countries || []).map(c => `${flag(c)}${c}`).join(", ");
+    return [
+      { html: `<strong>${s.name}</strong>` },
+      countries,
+      s.gold,
+      s.total,
+      s.points
+    ];
+  });
+
+  const table = elTable(
+    [
+      {label:"Owner"},
+      {label:"Countries"},
+      {label:"Gold", right:true},
+      {label:"Total medals", right:true},
+      {label:"Points", right:true}
+    ],
+    rows
+  );
+  const root = document.getElementById("poolScoring");
+  root.innerHTML = "";
+  root.appendChild(table);
+}
+
+function renderLeaderboard(stats) {
+  const ranked = [...stats].sort((a,b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.gold !== a.gold) return b.gold - a.gold;
+    return b.total - a.total;
+  });
+
+  const rows = ranked.map((s, idx) => ([
+    idx + 1,
+    { html: `<strong>${s.name}</strong>` },
+    s.points,
+    s.gold,
+    s.total
+  ]));
+
+  const table = elTable(
+    [
+      {label:"#", right:true},
+      {label:"Owner"},
+      {label:"Points", right:true},
+      {label:"Gold", right:true},
+      {label:"Total medals", right:true}
+    ],
+    rows
+  );
+  const root = document.getElementById("leaderboard");
+  root.innerHTML = "";
+  root.appendChild(table);
+}
+
+(async function main() {
+  try {
+    const pool = await loadJSON("./pool.json");
+    const medalDoc = await loadJSON("./medals.json");
+
+    document.getElementById("title").textContent = pool.title || "Winter Olympics Medal Draft Pool";
+
+    const scoring = pool.rules?.scoring || { gold: 3, silver: 2, bronze: 1 };
+    const rulesText = `Scoring: Gold ${scoring.gold}, Silver ${scoring.silver}, Bronze ${scoring.bronze}. Top ${pool.rules?.topN || 12} projected countries.`;
+    document.getElementById("rulesText").textContent = rulesText;
+
+    document.getElementById("lastUpdated").textContent = `Last updated: ${medalDoc.lastUpdated || "Unknown"}`;
+
+    const players = pool.players || [];
+    const projected = pool.projectedTopCountries || [];
+    const medalsMap = medalDoc.medals || {};
+
+    renderDraftBoard(players);
+    renderMedalTable(projected, medalsMap);
+
+    const stats = computePlayerStats(players, medalsMap, scoring);
+    renderPoolScoring(stats);
+    renderLeaderboard(stats);
+
+  } catch (e) {
+    document.getElementById("err").textContent = "Error loading files. Make sure pool.json and medals.json are in the same folder as index.html. Details: " + e.message;
+  }
+})();
+</script>
+</body>
+</html>
