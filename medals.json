@@ -1,0 +1,17 @@
+{
+  "lastUpdated": "Not updated yet",
+  "medals": {
+    "USA": { "gold": 0, "silver": 0, "bronze": 0 },
+    "NOR": { "gold": 0, "silver": 0, "bronze": 0 },
+    "GER": { "gold": 0, "silver": 0, "bronze": 0 },
+    "CAN": { "gold": 0, "silver": 0, "bronze": 0 },
+    "NED": { "gold": 0, "silver": 0, "bronze": 0 },
+    "SWE": { "gold": 0, "silver": 0, "bronze": 0 },
+    "SUI": { "gold": 0, "silver": 0, "bronze": 0 },
+    "AUT": { "gold": 0, "silver": 0, "bronze": 0 },
+    "FRA": { "gold": 0, "silver": 0, "bronze": 0 },
+    "ITA": { "gold": 0, "silver": 0, "bronze": 0 },
+    "CHN": { "gold": 0, "silver": 0, "bronze": 0 },
+    "JPN": { "gold": 0, "silver": 0, "bronze": 0 }
+  }
+}
