@@ -1,0 +1,30 @@
+{
+  "title": "Winter Olympics Medal Draft Pool",
+  "rules": {
+    "topN": 12,
+    "countriesPerPlayer": 2,
+    "scoring": { "gold": 3, "silver": 2, "bronze": 1 }
+  },
+  "players": [
+    { "name": "Matt", "countries": ["USA", "CAN"] },
+    { "name": "Player 2", "countries": ["NOR", "GER"] },
+    { "name": "Player 3", "countries": ["SWE", "NED"] },
+    { "name": "Player 4", "countries": ["FRA", "ITA"] },
+    { "name": "Player 5", "countries": ["SUI", "AUT"] },
+    { "name": "Player 6", "countries": ["CHN", "JPN"] }
+  ],
+  "projectedTopCountries": [
+    "USA",
+    "NOR",
+    "GER",
+    "CAN",
+    "NED",
+    "SWE",
+    "SUI",
+    "AUT",
+    "FRA",
+    "ITA",
+    "CHN",
+    "JPN"
+  ]
+}
